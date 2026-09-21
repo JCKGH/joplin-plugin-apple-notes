@@ -1,0 +1,132 @@
+/* ============================================================
+   Apple Notes theme for Joplin — userstyle.css
+   Scope: rendered markdown viewer (and matches editor body).
+   Apple Notes typography: 14px body, SF line-height, tight headings.
+   ============================================================ */
+
+:root {
+  --an-accent: #b07d10;               /* deeper gold for legible links/text accents */
+  --an-yellow: #fcb827;
+  --an-body-text: #454545;
+  --an-secondary: rgba(0, 0, 0, 0.5);
+  --an-separator: rgba(0, 0, 0, 0.1);
+  --an-code-bg: rgba(0, 0, 0, 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --an-accent: #fec60a;
+    --an-body-text: #eaeaea;
+    --an-secondary: #98989d;
+    --an-separator: rgba(255, 255, 255, 0.12);
+    --an-code-bg: rgba(255, 255, 255, 0.08);
+  }
+}
+
+#rendered-md {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #454545;
+  padding: 8px 32px 40px;
+}
+@media (prefers-color-scheme: dark) {
+  #rendered-md { color: #eaeaea; }
+}
+
+/* Headings: Notes uses bold weight, not huge sizes */
+#rendered-md h1 { font-size: 20px; font-weight: 700; margin: 0.8em 0 0.4em; }
+#rendered-md h2 { font-size: 17px; font-weight: 700; margin: 0.8em 0 0.4em; }
+#rendered-md h3 { font-size: 15px; font-weight: 600; }
+#rendered-md h4, #rendered-md h5, #rendered-md h6 { font-size: 14px; font-weight: 600; }
+
+#rendered-md p { margin: 0.5em 0; }
+
+#rendered-md a {
+  color: var(--an-accent);
+  text-decoration: none;
+}
+#rendered-md a:hover { text-decoration: underline; }
+
+/* Checklists — Apple Notes round-rect checkboxes */
+#rendered-md .checkbox-wrapper,
+#rendered-md li.task-list-item {
+  list-style: none;
+  margin-left: -18px;
+}
+#rendered-md input[type="checkbox"] {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  background: white;
+  vertical-align: -2px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  #rendered-md input[type="checkbox"] {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: transparent;
+  }
+}
+#rendered-md input[type="checkbox"]:checked {
+  background: var(--an-yellow);
+  border-color: var(--an-yellow);
+}
+
+/* Code & quotes */
+#rendered-md code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--an-code-bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+#rendered-md pre {
+  background: var(--an-code-bg);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+#rendered-md blockquote {
+  border-left: 3px solid var(--an-separator);
+  color: var(--an-secondary);
+  padding-left: 14px;
+  margin-left: 0;
+}
+
+/* Tables: hairline separators like Notes */
+#rendered-md table { border-collapse: collapse; }
+#rendered-md th, #rendered-md td {
+  border-bottom: 1px solid var(--an-separator);
+  padding: 6px 12px;
+  text-align: left;
+}
+#rendered-md th { color: var(--an-secondary); font-weight: 600; }
+
+/* Images: rounded like attachment bricks in Notes */
+#rendered-md img {
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+/* Horizontal rule: hairline */
+#rendered-md hr {
+  border: none;
+  border-top: 1px solid var(--an-separator);
+  margin: 18px 0;
+}
+
+/* Selection */
+#rendered-md ::selection { background: #B3D7FF; }
+@media (prefers-color-scheme: dark) {
+  #rendered-md ::selection { background: #0059D1; color: white; }
+}
+
+/* editor iframe body: kill TinyMCE oxide-dark blue tint (#1E2024) → neutral charcoal */
+html, body {
+  background-color: #1e1e1e !important;
+}
+@media (prefers-color-scheme: light) {
+  html, body { background-color: #ffffff !important; }
+}

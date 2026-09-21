@@ -1,0 +1,29 @@
+{
+  "name": "joplin-plugin-apple-notes",
+  "version": "1.0.0",
+  "description": "Gives Joplin the look and feel of Apple Notes on macOS \u2014 Apple-Notes-style note list, editor chrome, and colors in light and dark mode.",
+  "keywords": [
+    "joplin-plugin"
+  ],
+  "license": "MIT",
+  "author": "Joseph Jake Klein",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JCKGH/joplin-plugin-apple-notes.git"
+  },
+  "homepage": "https://github.com/JCKGH/joplin-plugin-apple-notes",
+  "bugs": {
+    "url": "https://github.com/JCKGH/joplin-plugin-apple-notes/issues"
+  },
+  "files": [
+    "publish"
+  ],
+  "scripts": {
+    "build": "tsc && cp src/manifest.json dist/manifest.json && node build-extras.js"
+  },
+  "devDependencies": {
+    "joplin-plugin-api": "^0.2.0",
+    "tar-stream": "^3.2.1",
+    "typescript": "^5.0.0"
+  }
+}

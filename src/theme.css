@@ -1,0 +1,1211 @@
+/* ============================================================
+   Apple Notes theme for Joplin — userchrome.css  (v3, full-app)
+   macOS Apple Notes look for Joplin 3.6.x, light + dark.
+   Assumes the "Apple Notes List" plugin is active (stacked rows,
+   no column header). Rules:
+   - never touch .fas/.far/.fab icon fonts
+   - only recolor/reshape; no functionality removed
+   ============================================================ */
+
+/* ---------- 1. DESIGN TOKENS (from macOS 26 System.clr) ---------- */
+:root {
+  --an-accent: #007AFF;                 /* system focus ring stays blue */
+  --an-sel-note: #fce9ab;               /* yellow wash selected note (reference) */
+  --an-yellow: #fcb827;                 /* Notes' brand yellow */
+  --an-gold: #b07d10;                   /* deeper gold: links, "In:" chip text */
+  --an-window: #ffffff;                 /* Notes: white editor + list */
+  --an-sidebar-bg: #f2f2f4;             /* Notes: cool light-gray sidebar */
+  --an-notelist-bg: #ffffff;            /* list column is white */
+  --an-sel-sidebar: #e3e3e5;            /* selected folder pill = cool gray */
+  --an-text: rgba(0, 0, 0, 0.85);
+  --an-secondary: rgba(0, 0, 0, 0.50);
+  --an-tertiary: rgba(0, 0, 0, 0.26);
+  --an-border: rgba(0, 0, 0, 0.09);
+  --an-fill-hover: rgba(0, 0, 0, 0.05);
+  --an-sel-fill: #e9e9eb;               /* neutral gray selection */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --an-accent: #0a84ff;
+    --an-window: #1e1e1e;
+    --an-sidebar-bg: #29292b;               /* Notes dark sidebar (translucent graphite) */
+    --an-notelist-bg: #1e1e1e;
+    --an-text: #eaeaea;                     /* Notes dark primary text */
+    --an-secondary: #98989d;                /* system secondaryLabel dark */
+    --an-tertiary: rgba(255, 255, 255, 0.30);
+    --an-border: rgba(255, 255, 255, 0.12);
+    --an-fill-hover: rgba(255, 255, 255, 0.07);
+    --an-sel-fill: #39393d;                 /* sidebar selected pill dark */
+    --an-sel-note: rgba(254, 195, 0, 0.35); /* Notes dark gold selection wash */
+    --an-sel-sidebar: #4a3f1a;
+    --an-gold: #fec60a;                     /* Notes dark accent gold */
+    --an-yellow: #fec60a;
+  }
+}
+
+/* ---------- 2. MAP ONTO JOPLIN THEME VARS ---------- */
+:root {
+  --joplin-background-color: var(--an-window) !important;
+  --joplin-background-color2: var(--an-sidebar-bg) !important;
+  --joplin-background-color3: var(--an-notelist-bg) !important;
+  --joplin-background-color-hover2: var(--an-fill-hover) !important;
+  --joplin-background-color-hover3: var(--an-fill-hover) !important;
+  --joplin-selected-color: var(--an-sel-note) !important;
+  --joplin-selected-color2: var(--an-sel-fill) !important;
+  --joplin-color: var(--an-text) !important;
+  --joplin-color2: var(--an-text) !important;
+  --joplin-color3: var(--an-secondary) !important;
+  --joplin-color-faded: var(--an-tertiary) !important;
+  --joplin-color-faded2: var(--an-secondary) !important;
+  --joplin-divider-color: var(--an-border) !important;
+  --joplin-url-color: var(--an-accent, #007aff) !important;
+  --joplin-color-warn-url: var(--an-accent, #007aff) !important;
+  --joplin-text-selection-color: rgba(0, 122, 255, 0.30) !important;
+  --joplin-border-color4: var(--an-border) !important;
+  --joplin-focus-outline-color: var(--an-accent, #007aff) !important;
+  --joplin-scrollbar-thumb-color: rgba(0, 0, 0, 0.25) !important;
+  --joplin-scrollbar-thumb-color2: rgba(0, 0, 0, 0.25) !important;
+  --joplin-scrollbar-thumb-color-hover2: rgba(0, 0, 0, 0.45) !important;
+  --joplin-background-color5: var(--an-notelist-bg) !important;
+  --joplin-color5: var(--an-text) !important;
+  --joplin-background-color-hover5: var(--an-fill-hover) !important;
+  --joplin-background-color4: var(--an-fill-hover) !important;
+  --joplin-background-color-hover4: var(--an-fill-hover) !important;
+  --joplin-background-color-active4: var(--an-sel-fill) !important;
+  --joplin-color4: var(--an-secondary) !important;
+  --joplin-color-faded2: var(--an-secondary) !important;   /* All-notes ghost icon */
+  --joplin-color2: var(--an-text) !important;
+  --joplin-background-color-active5: var(--an-sel-fill) !important;
+  --joplin-color4: var(--an-secondary) !important; /* toolbar icons graphite, not blue */
+  --joplin-url-color: var(--an-gold) !important;
+  --joplin-color-warn-url: var(--an-gold) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --joplin-scrollbar-thumb-color: rgba(255, 255, 255, 0.30) !important;
+    --joplin-scrollbar-thumb-color-hover2: rgba(255, 255, 255, 0.50) !important;
+  }
+}
+
+/* ---------- 3. TYPOGRAPHY (system font, EXCLUDING icon fonts) ---------- */
+body,
+.sidebar, .folder-and-tag-list,
+.folder-and-tag-list .list-item-wrapper span,
+.note-list, .note-list-header,
+.note-title-wrapper, .editor-toolbar,
+.search-bar, .search-bar input, .search-bar button,
+.updated-time-label, .sidebar-sync-button, .sync-report-toggle,
+.note-list-header button, .editor-toolbar button, button.toolbar-button,
+.folder-and-tag-list a,
+.folder-and-tag-list div:not(.foldericon):not([class*="fa-"]) {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 4. SIDEBAR ---------- */
+.sidebar {
+  background: var(--an-sidebar-bg) !important;
+  border-right: 1px solid var(--an-border) !important;
+}
+.rli-sideBar {
+  background: var(--an-sidebar-bg) !important;
+  border-right: none;
+}
+/* rows: rounded inset selection like Notes */
+.folder-and-tag-list .list-item-wrapper {
+  border-radius: 6px !important;
+  background: none !important;
+  margin: 0 8px !important;
+  height: 32px !important;
+  padding-left: calc(var(--joplin-main-padding) - 8px + ((var(--depth) - 2) * 16px)) !important;
+  box-sizing: border-box !important;
+}
+.folder-and-tag-list .list-item-wrapper.-selected {
+  background: var(--an-sel-sidebar) !important;
+}
+.folder-and-tag-list .list-item-wrapper.-selected a,
+.folder-and-tag-list .list-item-wrapper.-selected a span:not(.foldericon) {
+  color: var(--an-gold) !important;
+  font-weight: 600 !important;
+}
+.folder-and-tag-list .list-item-wrapper.-highlight-on-hover:not(.-selected):hover {
+  background: var(--an-fill-hover) !important;
+}
+/* row text */
+.folder-and-tag-list a,
+.folder-and-tag-list .list-item-wrapper span {
+  color: var(--an-text) !important;
+  font-size: 13px !important;
+  letter-spacing: -0.06px;
+}
+/* section headers ("NOTEBOOKS", "TAGS") — Notes keeps these quiet */
+.folder-and-tag-list .sidebar-header-container {
+  color: var(--an-tertiary) !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+}
+/* folder glyph color — Notes yellow */
+.foldericon i { color: var(--an-yellow) !important; }
+.foldericon { opacity: 1 !important; }
+
+/* ---------- 4b. DE-BLUE THE CHROME (New note / In: chip / icons / search) ---------- */
+/* Primary/Secondary buttons: Notes-quiet styling instead of Joplin blue */
+.button, .new-note-button, .new-todo-button {
+  border-radius: 6px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif !important;
+}
+.new-note-button {
+  background: var(--an-yellow) !important;
+  color: rgba(0,0,0,0.75) !important;
+  border: none !important;
+}
+.new-note-button i { color: rgba(0,0,0,0.75) !important; }
+.new-todo-button {
+  background: transparent !important;
+  color: var(--an-text) !important;
+  border: 1px solid var(--an-border) !important;
+}
+.new-todo-button i { color: var(--an-secondary) !important; }
+/* sort / calendar / search icons: graphite like Notes chrome */
+.search-and-sort button, .sort-order-field-button, .sort-order-reverse-button,
+.search-bar .icon-search, .search-bar i, .fas.icon-search {
+  color: var(--an-secondary) !important;
+}
+/* "In: <notebook>" chip (Primary button in editor): flat ghost text, no pill */
+.note-editor-wrapper .button, .note-title-wrapper .button {
+  background: transparent !important;
+  color: var(--an-secondary) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.note-editor-wrapper .button i, .note-title-wrapper .button i { color: var(--an-secondary) !important; }
+/* sidebar section headers stay quiet */
+.sidebar-header-container, .sidebar-header-container span {
+  color: var(--an-tertiary) !important;
+}
+/* editor status row (date, lang, bell, split, info) quiet */
+.note-editor-wrapper .icon-button, .editor-toolbar .button {
+  color: var(--an-secondary) !important;
+}
+/* "Click to add tags…" row */
+.clickable-tag-item, .tag-list a, .tag-bar {
+  color: var(--an-secondary) !important;
+}
+
+/* ---------- 5. NOTE LIST ---------- */
+.rli-noteList, .note-list {
+  background: var(--an-notelist-bg) !important;
+}
+/* the plugin's renderer owns row structure; only chrome + selection tint here.
+   Selection = Notes' soft gray pill (full-bleed inset handled by plugin css). */
+.note-list .note-list-item > .content.-selected {
+  background: var(--an-sel-note) !important;
+}
+/* rows start below a small breathing gap, like Notes */
+.note-list {
+  padding-top: 12px !important;
+}
+/* inset hairlines between rows, aligned with text */
+.note-list .notes > .note-list-item-wrapper {
+  margin-left: 12px !important;
+  margin-right: 12px !important;
+}
+/* Apple behavior: dividers around the SELECTED note disappear (both above and below) */
+.note-list .notes > .note-list-item-wrapper:has(.content.-selected)::after,
+.note-list .notes > .note-list-item-wrapper:has(+ .note-list-item-wrapper .content.-selected)::after {
+  display: none !important;
+}
+
+.note-list .notes > .note-list-item-wrapper:not(:last-child) {
+  position: relative;
+}
+.note-list .notes > .note-list-item-wrapper:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 1px;
+  background: var(--an-border);
+}
+.note-list .notes > .note-list-item-wrapper:not(:last-child) {
+  border-bottom: none !important;
+}
+.note-list .note-list-item-wrapper::before {
+  content: none !important;
+}
+
+/* ---------- 6. EDITOR ---------- */
+.rli-editor, .note-editor-wrapper {
+  background: var(--an-window) !important;
+}
+/* no drawn line between list and editor — whitespace/material contrast only */
+.note-editor-wrapper > .note-editor-wrapper,
+.note-title-wrapper {
+  background: var(--an-window) !important;
+  border-bottom: none !important;
+  padding: 14px 24px 4px 24px !important;
+}
+input.title-input {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  color: var(--an-text) !important;
+  letter-spacing: -0.4px;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  text-align: left !important;
+}
+/* Notes shows a small gray "Edited <date>" left-aligned under the title */
+.updated-time-label {
+  color: var(--an-tertiary) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  text-align: left !important;
+}
+/* editor toolbar: quiet icons, no full-width rule under it */
+.editor-toolbar {
+  background: transparent !important;
+  border: none !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+.toolbar-button {
+  color: var(--an-secondary) !important;
+  border-radius: 5px !important;
+}
+.toolbar-button:hover:not(:disabled) {
+  background: var(--an-fill-hover) !important;
+}
+.toolbar-icon { color: inherit !important; }
+/* content column: comfortable measure, generous margins */
+.note-editor-viewer-row {
+  max-width: 660px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ---------- 7. SEARCH BAR (capsule with icon inside) ---------- */
+.search-bar {
+  padding: 10px 12px 6px !important;
+}
+.search-bar > div {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.search-bar input {
+  background: var(--an-fill-hover) !important;
+  border: none !important;
+  border-radius: 8px !important;          /* capsule-ish; 8px reads well at 26px */
+  color: var(--an-text) !important;
+  height: 28px !important;
+  width: 100% !important;
+  text-align: left;
+  padding-left: 28px !important;          /* room for the icon inside */
+  font-size: 13px !important;
+  box-sizing: border-box !important;
+}
+.search-bar input::placeholder { color: var(--an-tertiary) !important; }
+.search-bar input:focus {
+  background: var(--an-window) !important;
+  box-shadow: 0 0 0 3.5px rgba(0, 122, 255, 0.25) !important;
+  outline: none !important;
+}
+.search-bar button {
+  position: absolute !important;
+  left: 7px !important;
+  right: auto !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: var(--an-secondary) !important;
+  background: none !important;
+  border: none !important;
+  padding: 4px 6px !important;
+  height: auto !important;
+  z-index: 2 !important;
+  font-size: 12px !important;
+}
+.search-bar input {
+  text-align: left !important;
+  padding-left: 30px !important;
+  padding-right: 8px !important;
+}
+
+/* ---------- 8. SCROLLBARS / MISC ---------- */
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+}
+/* keep sync row quiet */
+.sidebar-sync-button, .sync-report-toggle {
+  color: var(--an-secondary) !important;
+}
+
+
+/* ---------- 9. NOTE-LIST TOP CONTROLS (v1.2 layout pass) ----------
+   Real classes: .new-note-todo-buttons (grid row), .search-and-sort,
+   .new-note-button, .new-todo-button, .sort-order-field-button,
+   .sort-order-reverse-button, .search-bar. Goal: one quiet row, Notes-like. */
+
+/* collapse the two fat buttons into compact ghost pills on one row with the search */
+.new-note-todo-buttons {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;   /* buttons centered in the pane, Notes-style */
+  gap: 10px !important;
+  padding: 5px 10px 3px !important;   /* v1.8.2: split-difference keeps this; translate zeroed */
+  background: var(--an-notelist-bg) !important;
+}
+.new-note-todo-buttons button {
+  align-self: center !important;
+  transform: translateY(-1px) !important;  /* v1.8.4: user-measured 1px low → raise 1px */
+  margin: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: 28px !important;
+  padding: 0 8px !important;
+}
+.new-note-button, .new-todo-button {
+  background: transparent !important;
+  color: var(--an-secondary) !important;
+  border: none !important;
+  box-shadow: none !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  min-width: 0 !important;
+  padding: 0 8px !important;
+  border-radius: 5px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+.new-note-button:hover, .new-todo-button:hover {
+  background: var(--an-fill-hover) !important;
+}
+/* the search row: slimmer, tighter to the buttons */
+.search-and-sort {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 4px 10px 6px !important;
+  background: var(--an-notelist-bg) !important;
+}
+.search-and-sort .search-bar { flex: 1 1 auto !important; min-width: 0 !important; }
+.search-and-sort > div:last-child { display: flex; gap: 2px; }
+.search-and-sort > div:last-child,
+.search-and-sort .sort-order-field-button + .sort-order-reverse-button,
+.search-and-sort div:has(> .sort-order-field-button) {
+  margin-left: auto !important;
+}
+.search-and-sort .search-bar input {
+  height: 24px !important;
+  font-size: 12.5px !important;
+}
+/* sort buttons: quiet graphite squares */
+.sort-order-field-button, .sort-order-reverse-button {
+  background: transparent !important;
+  border: none !important;
+  color: var(--an-secondary) !important;
+  min-width: 0 !important;
+  padding: 0 6px !important;
+}
+
+/* ---------- 10. EDITOR HEADER (v1.2: date line centered, no strip) ---------- */
+/* title: bigger left margin for Notes-like composition; metadata under title centered */
+.note-title-wrapper {
+  padding: 14px 24px 4px !important;
+}
+.note-title-info-group {
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  height: auto !important;
+  gap: 6px !important;
+}
+.updated-time-label { font-size: 11px !important; letter-spacing: 0.1px; }
+/* flatten the blue 'In:' badge to quiet ghost text */
+.note-editor-wrapper .button,
+.note-editor-viewer-row button {
+  text-transform: none !important;
+}
+.note-editor-wrapper .button.titlebar-button,
+.note-title-info-group ~ * .button {
+  background: transparent !important;
+  border: none !important;
+  color: var(--an-tertiary) !important;
+  box-shadow: none !important;
+}
+/* the In: chip specifically: kill blue bg, ghost text */
+div.button.level-primary, button.level-primary,
+.note-editor-wrapper [class*="primary"] {
+  background: transparent !important;
+  color: var(--an-tertiary) !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-weight: 400 !important;
+}
+/* utilitarian top row (globe/bell/layout/info): small, quiet, gray */
+.note-editor-wrapper > div:first-child button,
+.note-title-info-group button {
+  color: var(--an-tertiary) !important;
+  opacity: 0.85;
+}
+/* formatting toolbar: lighter icons, calmer */
+.editor-toolbar .toolbar-button,
+.note-editor .toolbar-button {
+  color: var(--an-tertiary) !important;
+}
+.editor-toolbar .toolbar-button:hover:not(:disabled) {
+  background: var(--an-fill-hover) !important;
+  color: var(--an-secondary) !important;
+}
+/* remove any border under the title block (strip) */
+.note-title-wrapper, .note-editor-wrapper > div:first-child {
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+
+/* ---------- 11. SIDEBAR QUIETING (v1.2) ---------- */
+/* counts & headers: tertiary, lighter */
+.folder-and-tag-list .sidebar-header-container { letter-spacing: 0.2px; }
+/* sync row: ghost */
+.sidebar-sync-button {
+  opacity: 0.75;
+}
+
+
+/* ---------- 10. EDITOR TOP BAR — Apple Notes arrangement ---------- */
+/* Title full-width; below it: date on the left, tool icons on the right. */
+.note-title-wrapper {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  padding: 10px 24px 6px 24px !important;
+  background: var(--an-window) !important;
+  border-bottom: none !important;
+}
+.note-title-wrapper .title-input {
+  width: 100% !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  color: var(--an-text) !important;
+  background: transparent !important;
+  padding: 2px 0 6px !important;
+}
+.note-title-info-group {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  gap: 12px;
+}
+/* date: small gray, sits left; flush with the title's left edge */
+.note-title-info-group .updated-time-label {
+  color: var(--an-tertiary) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  order: 0;
+  margin-left: -8px !important;   /* cancel Joplin's inline paddingLeft:8 on the date */
+  padding-left: 0 !important;
+}
+/* toolbar: pushed right, icon-only; right edge aligned with the In: chip (chip right:14,
+   wrapper padding 24 → pull 10px to match) */
+.note-title-info-group > div:last-child, .note-title-info-group .editor-toolbar {
+  margin-left: auto !important;
+}
+button.toolbar-button.-has-title {
+  font-size: 0 !important;            /* hide text label, keep the button clickable */
+  gap: 0 !important;
+}
+button.toolbar-button.-has-title .toolbar-icon {
+  font-size: 16px !important;
+}
+button.toolbar-button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--an-secondary) !important;
+  opacity: 0.9;
+}
+button.toolbar-button:hover:not(.disabled) {
+  background: var(--an-fill-hover) !important;
+  border-radius: 6px;
+}
+/* sync/undo etc stray toolbar buttons same treatment */
+.note-title-wrapper .button:not(.toolbar-button) {
+  background: transparent !important;
+  border: none !important;
+  color: var(--an-tertiary) !important;
+  box-shadow: none !important;
+}
+
+
+/* ---------- 11. TODO CHECKBOX — yellow accent, not blue ---------- */
+.note-list input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 15px !important;
+  height: 15px !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--an-tertiary) !important;
+  background: transparent !important;
+}
+.note-list input[type="checkbox"]:checked {
+  background: var(--an-yellow) !important;
+  border-color: var(--an-yellow) !important;
+}
+
+
+/* ---------- 12. DE-BLUE PASS (styled-components load after us; use high-specificity + :has) ---- */
+/* 'In: <notebook>' chip: the only Primary button under the editor that contains icon-notebooks */
+button:has(> .icon-notebooks),
+.note-editor-wrapper button[class*="sc-"]:has(> .icon-notebooks) {
+  background: transparent !important;
+  color: var(--an-secondary) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+button:has(> .icon-notebooks) span { color: var(--an-secondary) !important; }
+button:has(> .icon-notebooks) i { color: var(--an-secondary) !important; }
+
+/* MD / rich-text toggle: flatten */
+.editor-toolbar .button, .note-editor .button,
+button[class*="-editor-"], .toggle-button {
+  background: transparent !important;
+  color: var(--an-secondary) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* note-list header icons (calendar, sort arrow): kill any theme blue */
+.note-list-header button i, .search-and-sort button i,
+.sort-order-field-button i, .sort-order-reverse-button i,
+.new-note-todo-buttons button i {
+  color: var(--an-secondary) !important;
+}
+.new-note-todo-buttons button span { color: var(--an-secondary) !important; }
+
+
+/* ---------- 13. SIDEBAR CONTRAST FIXES ---------- */
+/* Synchronize button + its icon: no ghost-on-gray */
+.sidebar-sync-button, .sidebar-sync-button .button, .sidebar-sync-button button {
+  color: var(--an-text) !important;
+  opacity: 1 !important;
+}
+.sidebar-sync-button i, .sidebar-sync-button .icon {
+  color: var(--an-text) !important;
+  opacity: 1 !important;
+}
+.sidebar-sync-button .button.disabled, .sidebar-sync-button button:disabled {
+  opacity: 0.7 !important;
+}
+/* 'All notes' header icon: never white */
+.sidebar-header-container .icon, .sidebar .icon-far,
+.folder-and-tag-list .fa, .folder-and-tag-list .far, .folder-and-tag-list .fas {
+  color: var(--an-secondary) !important;
+}
+.folder-and-tag-list .list-item-wrapper.-selected .fa,
+.folder-and-tag-list .list-item-wrapper.-selected .fas,
+.folder-and-tag-list .list-item-wrapper.-selected .far {
+  color: var(--an-gold) !important;
+}
+/* selected row icon+label gold like Notes */
+
+
+/* ---------- 14. EDITOR HEADER COMPRESSION (Notes-minimal) ---------- */
+/* Shrink every stacked row; total block should read as ~120px not ~355px */
+.note-title-wrapper { padding: 4px 24px 2px !important; }
+.note-title-wrapper .title-input { padding: 0 0 0 !important; margin-left: -8px !important; font-size: 22px !important; }
+/* v1.2.5: pull the date/icons row up toward the title (restored — was nuked by the margin:0 rule below) */
+.note-title-info-group { margin-top: -5px !important; }
+/* raise the toolbar band up with the tightened header */
+.joplin-tinymce { margin-top: 0 !important; }
+/* In-chip stays pinned to the title row (absolute top:10px right:14px of the wrapper) —
+   unaffected by the info-row raise. */
+.note-title-info-group { min-height: 0 !important; padding: 0 !important; }
+.note-title-info-group .updated-time-label { font-size: 11px !important; }
+.note-title-info-group > div:last-child { min-height: 0 !important; }
+/* In: row: tiny, quiet, right under the date */
+.note-editor-wrapper .button:has(> .icon-notebooks) {
+  min-height: 0 !important; height: 24px !important; padding: 0 4px !important;
+  font-size: 11px !important;
+}
+/* formatting toolbar: single slim row */
+.editor-toolbar, .note-editor .editor-toolbar,
+.note-editor .toolbar {
+  padding: 2px 8px !important;
+  min-height: 0 !important;
+  height: 34px !important;
+  background: var(--an-window) !important;
+  border-bottom: 1px solid var(--an-border) !important;
+}
+.editor-toolbar .toolbar-button, .editor-toolbar button, button.toolbar-button {
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding: 0 5px !important;
+  min-width: 0 !important;
+}
+/* back/forward/open cluster: demote to same gray, small */
+.editor-toolbar .button, .editor-toolbar .button i {
+  color: var(--an-tertiary) !important;
+}
+/* 'A' color chip: unbox it */
+.editor-toolbar [class*="button"]:has(> .fa-font) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--an-secondary) !important;
+  padding: 0 4px !important;
+  height: 26px !important;
+}
+/* MD/rich-text toggle: slim, quiet, gray */
+.editor-toolbar .toggle-button, .editor-toolbar button[class*="toggle"] {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 6px !important;
+  background: transparent !important;
+  color: var(--an-tertiary) !important;
+  border: none !important;
+}
+
+
+/* sort/calendar/new-todo icon override (belt & suspenders over the var mapping) */
+.sort-order-field-button i, .sort-order-reverse-button i,
+.new-todo-button i, .new-note-button i, .search-and-sort i {
+  color: var(--an-secondary) !important;
+}
+
+
+/* ---------- 15. STABLE-CLASS ICON HOOKS (v1.7) ---------- */
+/* 'All notes' icon: Joplin styles it with theme.colorFaded2 which is undefined in the theme
+   object, so it inherits unpredictable whites. These class names are stable in the DOM. */
+.folder-and-tag-list .all-notes .icon-notes {
+  color: var(--an-secondary) !important;
+}
+.folder-and-tag-list .list-item-wrapper.-selected .all-notes .icon-notes,
+.folder-and-tag-list .all-notes.-selected .icon-notes,
+.folder-and-tag-list .all-notes .list-item-wrapper.-selected .icon-notes {
+  color: var(--an-gold) !important;
+}
+/* also cover the wrapper-selection case (selection class is on the wrapper) */
+.folder-and-tag-list .list-item-wrapper.-selected .icon-notes {
+  color: var(--an-gold) !important;
+}
+/* header icons + collapse/add buttons: graphite, never white */
+.sidebar-header-container .icon, .sidebar-header-container i {
+  color: var(--an-secondary) !important;
+}
+
+
+/* ---------- 16. IN-CHIP → TOP-RIGHT (v1.7) ---------- */
+/* The 'In: <notebook>' button lives in an unclassed div between the title row and the editor.
+   Float it to the title row's right edge, inline, tiny — like Notes' notebook breadcrumb. */
+.rli-editor { position: relative; }
+.note-title-wrapper + div:has(.icon-notebooks) {
+  position: absolute !important;
+  top: 6px !important;
+  right: 14px !important;
+  padding: 0 !important;
+  z-index: 20;
+}
+/* shrink the chip itself */
+.note-title-wrapper + div:has(.icon-notebooks) button {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--an-tertiary) !important;
+  font-size: 11px !important;
+  min-width: 0 !important;
+  height: auto !important;
+  padding: 2px 4px !important;
+}
+.note-title-wrapper + div:has(.icon-notebooks) button .icon,
+.note-title-wrapper + div:has(.icon-notebooks) button i {
+  color: var(--an-tertiary) !important;
+  font-size: 12px !important;
+}
+
+
+/* ---------- 17. SYNC BUTTON — FINAL OVERWHELMING SPECIFICITY (v1.7.1) ---------- */
+button.sidebar-sync-button,
+.sidebar button.sidebar-sync-button,
+.sidebar-sync-button.sidebar-sync-button,
+button.sidebar-sync-button span,
+button.sidebar-sync-button .title,
+button.sidebar-sync-button i,
+button.sidebar-sync-button .icon,
+button.sidebar-sync-button svg,
+.sidebar-sync-button * {
+  color: var(--an-text) !important;
+  opacity: 1 !important;
+}
+button.sidebar-sync-button:disabled,
+button.sidebar-sync-button.-synced {
+  color: var(--an-secondary) !important;
+  opacity: 0.85 !important;
+}
+
+
+/* ---------- 18. LIQUID-GLASS LOOK (v1.7.1) ---------- */
+/* True window vibrancy isn't reachable (BrowserWindow transparency is fixed at creation, the
+   plugin can't change it). What CSS CAN do: frosted surfaces — blur+saturate behind floating
+   chrome so overlaps read as glass. */
+.search-bar input,
+.editor-toolbar,
+.note-editor .editor-toolbar {
+  backdrop-filter: blur(14px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(160%) !important;
+  background: rgba(255, 255, 255, 0.62) !important;
+}
+/* note toolbar right of the date: flat, no glass, no bottom hairline; icons flush to the
+   right edge so they align under the In: chip (chip right:14px) */
+.note-title-wrapper .editor-toolbar {
+  background: transparent !important;
+  border-bottom: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+  margin-right: -24px !important;
+  margin-left: auto !important;
+}
+@media (prefers-color-scheme: dark) {
+  .search-bar input {
+    background: rgba(120, 120, 128, 0.24) !important;  /* Apple dark search fill */
+  }
+  .note-editor .editor-toolbar {
+    background: transparent !important;
+  }
+  /* the note toolbar right of the date: flat on black (user request v1.8.4) */
+  .note-title-wrapper .editor-toolbar {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+/* frosted note-list header card */
+.new-note-todo-buttons, .search-and-sort {
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
+}
+
+
+/* ---------- 19. SYNC BUTTON FILL (v1.7.2) ---------- */
+button.sidebar-sync-button,
+button.sidebar-sync-button span,
+button.sidebar-sync-button .title {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+
+/* ---------- 20. TITLE/TRICHIP COEXISTENCE (v1.7.2) ---------- */
+/* When the In: chip is present (All notes / Search / Tag views), reserve right space so long
+   titles truncate instead of colliding. When browsing inside a notebook the chip is absent,
+   so the selector doesn't match and the title keeps full width. */
+.rli-editor div:has(> .note-title-wrapper):has(.icon-notebooks) .title-input {
+  padding-right: 150px !important;
+}
+/* and make the title input truncate instead of pushing wide */
+.rli-editor div:has(> .note-title-wrapper):has(.icon-notebooks) .title-input {
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+
+/* ---------- 21. HIDE SYNC-REPORT EXPANDER + STATUS (v1.8) ---------- */
+/* The chevron expander and 'Completed: <date>' line under the Synchronize button. The checkmark
+   on the button already tells sync state; this text is redundant and unreadable. Hide both. */
+button.sync-report-toggle,
+#sync-report,
+.sidebar #sync-report {
+  display: none !important;
+}
+
+
+/* ---------- 22. SLIM SEARCH PILL (v1.8) ---------- */
+.search-and-sort .search-bar input {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 26px 0 34px !important;  /* left must clear icon (left:6 + width 22 = 28px) */
+  font-size: 12px !important;
+  line-height: 26px !important;
+}
+.search-and-sort .search-bar button {
+  width: 22px !important;
+  height: 26px !important;
+}
+
+
+/* ---------- 23. NOTE-ACTION ICON STRIP → FLAT (v1.8.3) ---------- */
+/* TinyMCE extra-toolbar containers (globe/bell/layout/info) get theme.backgroundColor3 = a
+   lighter gray pill. User wants them flat on the editor background like the date/title. */
+.joplin-tinymce > div:has(> button) {
+  background-color: transparent !important;
+}
+
+
+/* ---------- 24. NOTE BODY → NEUTRAL BLACK (v1.8.6) ---------- */
+/* TinyMCE dark skin paints the edit area with a blue-tinted charcoal (#222f3e family).
+   Force the edit area + iframe + content body to the same neutral window color. */
+.joplin-tinymce .tox-tinymce,
+.joplin-tinymce .tox-edit-area,
+.joplin-tinymce .tox-edit-area__iframe {
+  background: var(--an-window) !important;
+}
+/* inside the iframe (vars may not cross the document boundary): literal dark value */
+.joplin-tinymce .tox-edit-area__iframe { background-color: #1e1e1e !important; }
+
+
+/* ---------- 25. OXIDE SKIN → NEUTRAL (v1.8.7) ---------- */
+/* TinyMCE's dark skin has blue-tinted charcoals that leak through everywhere Joplin's
+   variable overrides don't reach. Neutralize every skin surface on the chrome side. */
+.joplin-tinymce .tox .tox-tinymce,
+.joplin-tinymce .tox .tox-toolbar__primary,
+.joplin-tinymce .tox .tox-toolbar__group,
+.joplin-tinymce .tox .tox-toolbar__overflow,
+.joplin-tinymce .tox .tox-toolbar-overlord,
+.joplin-tinymce .tox .tox-editor-header,
+.joplin-tinymce .tox .tox-editor-container,
+.joplin-tinymce .tox .tox-anchorbar,
+.joplin-tinymce .tox .tox-toolbar,
+.joplin-tinymce .tox .tox-split-button,
+.joplin-tinymce .tox .tox-toolbar__slider {
+  background-color: var(--an-window) !important;
+}
+/* the toggle (M↓/pencil) segmented control: match window, quiet border */
+.joplin-tinymce .tox .tox-tbtn--select,
+.joplin-tinymce .tox .tox-tbtn--enabled {
+  background-color: var(--an-window) !important;
+}
+.joplin-tinymce .tox .tox-tbtn,
+.joplin-tinymce .tox .tox-tbtn svg,
+.joplin-tinymce .tox .tox-tbtn span {
+  color: var(--an-secondary) !important;
+}
+.joplin-tinymce .tox .tox-tbtn:hover {
+  background-color: var(--an-fill-hover) !important;
+}
+
+
+/* ---------- 26. BLANKET SKIN KILL (v1.8.9) ---------- */
+/* One pale #F3F4F4 skin block between '...' and the M↓ toggle keeps surviving targeted rules.
+   Blanket override every .tox element inside the editor header, then re-enable the ones we
+   intentionally color. */
+.joplin-tinymce .tox .tox-editor-header *,
+.joplin-tinymce .tox .tox-tinymce > * {
+  background-color: transparent !important;
+}
+.joplin-tinymce .tox .tox-editor-header,
+.joplin-tinymce .tox .tox-tinymce {
+  background-color: var(--an-window) !important;
+}
+/* buttons/segments we DO want visible: give them their subtle fills back */
+/* buttons: transparent, sitting directly on the white band (no bubbles) */
+.joplin-tinymce .tox .tox-tbtn,
+.joplin-tinymce .tox .tox-split-button,
+.joplin-tinymce .tox .tox-tbtn--select,
+.joplin-tinymce .tox .tox-tbtn--enabled,
+.joplin-tinymce .tox .tox-tbtn--active {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+.joplin-tinymce .tox .tox-tbtn--enabled {
+  color: var(--an-accent) !important;
+}
+
+
+/* segmented MD/rich-text control: no dark active fill, quiet outline only */
+.joplin-tinymce .tox .tox-tbtn--select,
+.joplin-tinymce .tox .tox-tbtn--enabled,
+.joplin-tinymce .tox .tox-tbtn--active,
+.joplin-tinymce .tox .tox-split-button,
+.joplin-tinymce .tox .tox-split-button button,
+.editor-toolbar .toggle-button,
+.editor-toolbar button[class*="toggle"],
+.joplin-tinymce button[class*="toggle"],
+.joplin-tinymce .tox .tox-tbtn[class*="active"] {
+  background: var(--an-window) !important;
+  color: var(--an-secondary) !important;
+  box-shadow: none !important;
+}
+
+
+/* ---------- 27. UNIFORM WHITE BAND (v1.9.1) ---------- */
+/* The whole TinyMCE toolbar region — buttons area AND the gap to the M↓ toggle — must be one
+   flat window-colored surface. Buttons transparent (no bubbles), pencil flat. */
+.joplin-tinymce .tox .tox-tinymce,
+.joplin-tinymce .tox .tox-editor-header,
+.joplin-tinymce .tox .tox-editor-container,
+.joplin-tinymce .tox .tox-anchorbar,
+.joplin-tinymce .tox .tox-toolbar-overlord,
+.joplin-tinymce .tox .tox-toolbar__primary,
+.joplin-tinymce .tox .tox-toolbar__overflow,
+.joplin-tinymce .tox .tox-toolbar,
+.joplin-tinymce .tox .tox-toolbar__group {
+  background: var(--an-window) !important;
+}
+.joplin-tinymce .tox .tox-tbtn,
+.joplin-tinymce .tox .tox-split-button,
+.joplin-tinymce .tox .tox-tbtn--select,
+.joplin-tinymce .tox .tox-tbtn--enabled,
+.joplin-tinymce .tox .tox-tbtn--active,
+.joplin-tinymce .tox .tox-split-button button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.joplin-tinymce .tox .tox-tbtn--select,
+.joplin-tinymce .tox .tox-tbtn--enabled,
+.joplin-tinymce .tox .tox-tbtn--active,
+.joplin-tinymce button[class*="toggle"] {
+  background: transparent !important;
+  color: var(--an-secondary) !important;
+}
+.joplin-tinymce .tox .tox-tbtn:hover,
+.joplin-tinymce .tox .tox-split-button:hover {
+  background: var(--an-fill-hover) !important;
+}
+
+
+/* ---------- 28. CATCH-ALL: EVERY TOX SURFACE = WINDOW (v1.9.3) ---------- */
+/* One #ECECEC rounded block left of the M↓ toggle keeps escaping named selectors.
+   Catch-all: every div under the tox root paints the window color; buttons stay transparent. */
+.joplin-tinymce .tox div,
+.joplin-tinymce .tox .tox-toolbar__overflow,
+.joplin-tinymce .tox .tox-toolbar-overlord {
+  background-color: var(--an-window) !important;
+}
+
+
+/* ---------- 29. GAP BLOCK FINAL KILL (v1.9.4) ---------- */
+/* The #F4F5F6 block survives even a 'div' catch-all — so it isn't a plain div background.
+   Kill background-IMAGE (TinyMCE's svg filler trick) and paint *everything* under the tox
+   root, all element types. */
+/* v1.9.6 per user: give up on hunting the #F4F5F6 block; instead make the WHOLE toolbar line
+   (buttons area + gap + behind the toggle) that same dark gray, edge to edge. */
+.joplin-tinymce .tox *,
+.joplin-tinymce .tox *::before,
+.joplin-tinymce .tox *::after {
+  background-color: #f4f5f6 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.joplin-tinymce > div:not(.tox-tinymce) {
+  background-color: #f4f5f6 !important;
+}
+.joplin-tinymce .tox .tox-tinymce {
+  background-color: #f4f5f6 !important;
+}
+@media (prefers-color-scheme: dark) {
+  .joplin-tinymce .tox *,
+  .joplin-tinymce .tox *::before,
+  .joplin-tinymce .tox *::after {
+    background-color: #2f3138 !important;  /* matches the oxide block so the band is uniform */
+  }
+  .joplin-tinymce > div:not(.tox-tinymce) {
+    background-color: #2f3138 !important;
+  }
+}
+.joplin-tinymce .tox .tox-tbtn,
+.joplin-tinymce .tox .tox-split-button,
+.joplin-tinymce .tox .tox-tbtn--select,
+.joplin-tinymce .tox .tox-tbtn--enabled,
+.joplin-tinymce .tox .tox-tbtn--active {
+  background-color: transparent !important;
+}
+.joplin-tinymce .tox .tox-tbtn:hover,
+.joplin-tinymce .tox .tox-split-button:hover {
+  background-color: var(--an-fill-hover) !important;
+}
+
+
+/* buttons remain transparent on the gray band; hover keeps subtle fill */
+.joplin-tinymce .tox .tox-tbtn,
+.joplin-tinymce .tox .tox-split-button,
+.joplin-tinymce .tox .tox-tbtn--select,
+.joplin-tinymce .tox .tox-tbtn--enabled,
+.joplin-tinymce .tox .tox-tbtn--active {
+  background-color: transparent !important;
+}
+.joplin-tinymce .tox .tox-tbtn:hover,
+.joplin-tinymce .tox .tox-split-button:hover {
+  background-color: var(--an-fill-hover) !important;
+}
+
+
+/* v1.9.7: the named-selector white rules (sections 25/27/28) out-specify the star rule and
+   repaint the middle of the band white — re-pin them to the band color, last-wins. */
+.joplin-tinymce .tox .tox-toolbar__primary,
+.joplin-tinymce .tox .tox-toolbar__group,
+.joplin-tinymce .tox .tox-toolbar__overflow,
+.joplin-tinymce .tox .tox-toolbar-overlord,
+.joplin-tinymce .tox .tox-editor-header,
+.joplin-tinymce .tox .tox-editor-container,
+.joplin-tinymce .tox .tox-anchorbar,
+.joplin-tinymce .tox .tox-toolbar {
+  background-color: #f4f5f6 !important;
+}
+@media (prefers-color-scheme: dark) {
+  .joplin-tinymce .tox .tox-toolbar__primary,
+  .joplin-tinymce .tox .tox-toolbar__group,
+  .joplin-tinymce .tox .tox-toolbar__overflow,
+  .joplin-tinymce .tox .tox-toolbar-overlord,
+  .joplin-tinymce .tox .tox-editor-header,
+  .joplin-tinymce .tox .tox-editor-container,
+  .joplin-tinymce .tox .tox-anchorbar,
+  .joplin-tinymce .tox .tox-toolbar {
+    background-color: #303138 !important;
+  }
+}
+
+/* ---------- 30. SIDEBAR HEADER HOVER (NOTEBOOKS/TAGS) — Apple-style light rounded box ---------- */
+/* Joplin paints StyledHeader:hover with backgroundColorHover2 full-bleed + asymmetric padding
+   (mainPadding top, mainPadding/2 bottom) -> text sits high in a dark square box.
+   Restyle: hover on the rounded row wrapper (like notebooks), symmetric height. */
+.folder-and-tag-list .sidebar-header-container .sidebar-header-container__header,
+.folder-and-tag-list .sidebar-header-container > div {
+  background: transparent !important;
+  border-radius: 0 !important;
+  transition: none !important;
+}
+.folder-and-tag-list .sidebar-header-container {
+  height: 32px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+}
+.folder-and-tag-list .sidebar-header-container.-highlight-on-hover:hover,
+.folder-and-tag-list .sidebar-header-container:hover {
+  background: var(--an-fill-hover) !important;
+  border-radius: 6px !important;
+}
+.folder-and-tag-list .sidebar-header-container > div {
+  height: 100% !important;
+  padding: 0 0 0 calc(var(--joplin-main-padding) - 8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+}
+
+/* ---------- 31. TOOLBAR BAND ROUNDED CORNERS ---------- */
+/* The band's button-area is painted by an element we could never pin (inline bg), so instead
+   of rounding the painters, CLIP the whole editor root: radius + overflow hidden on
+   .joplin-tinymce rounds whatever paints the top strip. No margins (v1.1.0 toggle regression). */
+.joplin-tinymce {
+  border-radius: 8px 8px 0 0 !important;
+  overflow: hidden !important;
+}
+.joplin-tinymce .tox .tox-tinymce,
+.joplin-tinymce .tox .tox-editor-header,
+.joplin-tinymce .tox .tox-editor-container,
+.joplin-tinymce .tox .tox-anchorbar,
+.joplin-tinymce .tox .tox-toolbar-overlord,
+.joplin-tinymce .tox .tox-toolbar__primary {
+  border-radius: 8px 8px 0 0 !important;
+}
+/* band bottom corners: the band = .tox-editor-header strip; round all four corners so the
+   bottom edge rounds too (user report v1.1.3: top rounded, bottom square) */
+.joplin-tinymce .tox .tox-editor-header,
+.joplin-tinymce .tox .tox-toolbar__primary,
+.joplin-tinymce .tox .tox-toolbar__overflow,
+.joplin-tinymce .tox .tox-toolbar__group,
+.joplin-tinymce .tox .tox-toolbar-overlord {
+  border-radius: 8px !important;
+}
+@media (prefers-color-scheme: dark) {
+  .joplin-tinymce .tox .tox-editor-header,
+  .joplin-tinymce .tox .tox-toolbar__primary,
+  .joplin-tinymce .tox .tox-toolbar__overflow,
+  .joplin-tinymce .tox .tox-toolbar__group,
+  .joplin-tinymce .tox .tox-toolbar-overlord {
+    border-radius: 8px !important;
+  }
+}
+
+/* v1.1.5: rounded band corners need a DARK surface behind them — the root used to paint
+   the same band color (#2f3138), filling the corner notches and hiding the radius. */
+@media (prefers-color-scheme: dark) {
+  .joplin-tinymce .tox .tox-tinymce { background-color: #1e1e1e !important; }
+}
+
+/* ---------- 32. BAND END CAPS (v1.1.6) ---------- */
+/* The band's square bottom corners come from the extraToolbarContainers (left history/forward/
+   external-edit, right toggle container) — absolute, inline backgroundColor3, height 76px.
+   Previous ':has(> button)' selector never matched (button is a GRANDCHILD). Instead of
+   making them transparent (kills the band), round their outer corners: left container gets
+   left rounding, right container right rounding. */
+
+/* ---------- 34. END-CAP CHILD PAINTERS (v1.2.1) ---------- */
+/* Probe proved the end-cap containers match ':has(button)', but the container's
+   own inline bg is NOT the visible band paint — the paint comes from a CHILD inside
+   the container's padding. (Section content superseded in v1.2.8.) */
+
+
+/* ---------- 35. DEBUG PROBE 2 (v1.2.3 — TEMPORARY) ---------- */
+
+
+/* v1.2.5: date label box was 35px tall for 11px text — compact it */
+.note-title-info-group .updated-time-label {
+  line-height: 14px !important;
+  padding: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+
+/* ---------- 36. BAND BOTTOM CORNERS (v1.2.8 — per independent review) ---------- */
+/* The visible band ends are the two extraToolbarContainers (absolute, z-index 2).
+   They are the FIRST children of .joplin-tinymce; the editor (#tinymce-container) is LAST,
+   so :not([id^='tinymce-container']) + nth-of-type targets exactly the two caps.
+   nth-of-type assumes the overlay container is null (Joplin 3.6.16 default). */
+.joplin-tinymce > div:not([id^='tinymce-container']) {
+  overflow: hidden !important;
+}
+.joplin-tinymce > div:not([id^='tinymce-container']):nth-of-type(1) {
+  border-radius: 8px 0 0 8px !important;
+}
+.joplin-tinymce > div:not([id^='tinymce-container']):nth-of-type(2) {
+  border-radius: 0 8px 8px 0 !important;
+}
+
+/* ---------- 37. BAND BOTTOM CORNER NOTCHES on ROOT (v1.0.2) ---------- */
+/* PROVEN: the square corner paint is the tox band BEHIND the caps (full-width), which no
+   cap-internal clip can touch (cap ::after gets clipped by the cap's own overflow+radius).
+   So paint the notches on the ROOT (position:relative, zIndex free): band bottom sits
+   38px (css) below the root top = cap box (toolbarHeight + 2*toolbarPadding = 38px @1x,
+   measured 76 screen px @2x in Jake's screenshots). Notch = 8x8 window-colored square with
+   transparent quarter-circle; anchored left/right:0, top: 30px. */
+.joplin-tinymce::before,
+.joplin-tinymce::after {
+  content: '';
+  position: absolute;
+  top: 30px;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  z-index: 100;
+}
+.joplin-tinymce::before {
+  left: 0;
+  background: radial-gradient(circle 9px at 100% 0, transparent 8.5px, #ffffff 9px);
+}
+.joplin-tinymce::after {
+  right: 0;
+  background: radial-gradient(circle 9px at 0 0, transparent 8.5px, #ffffff 9px);
+}
+@media (prefers-color-scheme: dark) {
+  .joplin-tinymce::before {
+    background: radial-gradient(circle 9px at 100% 0, transparent 8.5px, #1e1e1e 9px);
+  }
+  .joplin-tinymce::after {
+    background: radial-gradient(circle 9px at 0 0, transparent 8.5px, #1e1e1e 9px);
+  }
+}
