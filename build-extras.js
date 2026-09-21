@@ -26,6 +26,10 @@ const gzip = zlib.createGzip();
 const out = fs.createWriteStream(jpl);
 pack.pipe(gzip).pipe(out);
 
+// Fixed timestamp so that rebuilding the same source produces a byte-identical .jpl
+// (and therefore a meaningful SHA-256 for the released artifact).
+const mtime = new Date(0);
+
 const done = new Promise((res, rej) => {
   out.on('finish', () => { console.log('Built ' + jpl); res(); });
   out.on('error', rej);
@@ -35,7 +39,7 @@ const done = new Promise((res, rej) => {
   for (const f of files) {
     if (!fs.existsSync(f.from)) throw new Error(f.from + ' missing');
     await new Promise((res, rej) => {
-      pack.entry({ name: f.name }, fs.readFileSync(f.from), err => err ? rej(err) : res());
+      pack.entry({ name: f.name, mtime }, fs.readFileSync(f.from), err => err ? rej(err) : res());
     });
   }
   pack.finalize();
