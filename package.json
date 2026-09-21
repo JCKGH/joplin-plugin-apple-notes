@@ -19,7 +19,8 @@
     "publish"
   ],
   "scripts": {
-    "build": "tsc && cp src/manifest.json dist/manifest.json && node build-extras.js"
+    "build": "tsc && cp src/manifest.json dist/manifest.json && node build-extras.js",
+    "test": "node test/activation.test.js"
   },
   "devDependencies": {
     "joplin-plugin-api": "^0.2.0",

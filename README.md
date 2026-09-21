@@ -14,9 +14,8 @@ Makes Joplin look and feel like Apple Notes on macOS.
 
 1. Open Joplin and go to **Tools → Options → Plugins** (on macOS: **Joplin → Settings → Plugins**).
 2. Search for **Apple Notes** and click **Install**.
-3. Restart Joplin when prompted.
 
-That is the whole setup: on its first run the plugin switches Joplin's note list style to Apple Notes for you.
+That is the whole setup: the plugin starts straight away and switches Joplin's note list style to Apple Notes for you. (When *updating* an already installed plugin, Joplin may ask you to restart it.)
 
 ## How the note list style gets enabled
 
