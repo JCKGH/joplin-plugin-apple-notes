@@ -22,7 +22,11 @@
 // global joplin is provided by the Joplin plugin host at runtime
 declare const joplin: any;
 
+const PLUGIN_ID = 'com.jk.applenoteslist';
 const RENDERER_ID = 'apple-notes';
+// Joplin registers plugin renderers as "<plugin id>:<id>" - that full id is what
+// the notes.listRendererId setting and the menu items use.
+const FULL_RENDERER_ID = PLUGIN_ID + ':' + RENDERER_ID;
 const RENDERER_ID_SUFFIX = ':apple-notes';
 const DEFAULT_RENDERER_ID = 'compact';
 const STATE_FILENAME = 'activation.json';
@@ -45,16 +49,82 @@ const diagEvent = (name: string, detail?: any) => {
 	if (detail !== undefined) entry.detail = detail;
 	diag.events.push(entry);
 	log(name, detail === undefined ? '' : detail);
+	try {
+		writeDiag();
+	} catch (error) {
+		// Diagnostics must never break the plugin.
+	}
 };
 
-const writeDiag = (dataDir: string) => {
+// Records what this Joplin build actually exposes to plugins. Written before any
+// activation attempt so a failure to reach the menu is explained, not just seen.
+const probeRuntime = () => {
+	const report: any = { typeofRequire: typeof (globalThis as any).require };
+	try {
+		report.platform = nodeRequire('os').platform();
+	} catch (error) {
+		report.platformError = String(error);
+	}
+	try {
+		const remote = nodeRequire('@electron/remote');
+		report.remote = 'loaded';
+		try {
+			const menu = remote.Menu.getApplicationMenu();
+			const ids: string[] = [];
+			let sawClickFunction = null;
+			if (menu && Array.isArray(menu.items)) {
+				const pending = menu.items.slice();
+				while (pending.length) {
+					const item = pending.shift();
+					if (!item) continue;
+					if (typeof item.id === 'string') {
+						ids.push(item.id);
+						if (isOurRenderer(item.id)) sawClickFunction = typeof item.click;
+					}
+					try {
+						const submenu = item.submenu;
+						if (submenu && Array.isArray(submenu.items)) pending.push(...submenu.items);
+					} catch (error) {
+						// Not reachable through the remote proxy: ignore.
+					}
+				}
+			}
+			report.menuIdCount = ids.length;
+			report.menuIds = ids.slice(0, 80);
+			report.ourItemClickedType = sawClickFunction;
+		} catch (error) {
+			report.menuError = String(error);
+		}
+		try {
+			const bridge = remote.getGlobal('joplinBridge');
+			report.joplinBridge = bridge ? typeof bridge : 'missing';
+		} catch (error) {
+			report.joplinBridgeError = String(error);
+		}
+	} catch (error) {
+		report.remote = 'unavailable: ' + String(error);
+	}
+	diagEvent('runtime probe', report);
+};
+
+// Known once onStart has resolved joplin.plugins.dataDir().
+let diagDataDir = '';
+
+// Writes the diagnostic trail to every location that works. Called after every
+// single event, so the file stays useful even when a later step hangs or throws.
+const writeDiag = (dataDir?: string) => {
+	if (dataDir) diagDataDir = dataDir;
 	diag.finished = new Date().toISOString();
 	const text = JSON.stringify(diag, null, 2);
 	// Write every location that works, so the log is available both to the user
 	// and to whoever is diagnosing the plugin from another account.
-	for (const target of [`${dataDir}/activation-log.json`, SHARED_DIAG_FILE]) {
+	const targets = [SHARED_DIAG_FILE];
+	if (diagDataDir) targets.unshift(`${diagDataDir}/activation-log.json`);
+	for (const target of targets) {
 		try {
-			nodeRequire('fs').writeFileSync(target, text);
+			const fs = nodeRequire('fs');
+			if (diagDataDir) fs.mkdirSync(diagDataDir, { recursive: true });
+			fs.writeFileSync(target, text);
 		} catch (error) {
 			// Try the next location.
 		}
@@ -128,19 +198,42 @@ const clickNoteListStyleMenuItem = async (): Promise<boolean> => {
 	try {
 		remote = nodeRequire('@electron/remote');
 	} catch (error) {
-		log('@electron/remote is not available', error);
+		diagEvent('@electron/remote is not available', String(error));
 		return false;
 	}
 
 	const startedAt = Date.now();
+	let walkReported = false;
 	while (Date.now() - startedAt < MENU_WAIT_MS) {
 		try {
 			const menu = remote.Menu.getApplicationMenu();
+			if (!walkReported) {
+				walkReported = true;
+				const ids: string[] = [];
+				if (menu && Array.isArray(menu.items)) {
+					const pending = menu.items.slice();
+					while (pending.length) {
+						const item = pending.shift();
+						if (!item) continue;
+						if (typeof item.id === 'string') ids.push(item.id);
+						try {
+							const submenu = item.submenu;
+							if (submenu && Array.isArray(submenu.items)) pending.push(...submenu.items);
+						} catch (error) {
+							// ignore
+						}
+					}
+				}
+				diagEvent('menu walk', { menuFound: !!menu, idCount: ids.length, ids: ids.slice(0, 80) });
+			}
 			const item = findRendererMenuItem(menu);
-			if (item && typeof item.click === 'function') {
-				item.click();
-				log('clicked the "Note list style > Apple Notes" menu item');
-				return true;
+			if (item) {
+				diagEvent('found the Apple Notes menu item', { id: item.id, clickType: typeof item.click });
+				if (typeof item.click === 'function') {
+					item.click();
+					diagEvent('clicked the "Note list style > Apple Notes" menu item');
+					return true;
+				}
 			}
 		} catch (error) {
 			log('could not inspect the application menu', error);
@@ -162,6 +255,189 @@ const showToast = async (text: string) => {
 	} catch (error) {
 		log('could not show a toast', error);
 	}
+};
+
+// ---------------------------------------------------------------------------
+// Switching the note list style: what is actually possible (Joplin 3.7.x)
+//
+// The note list style is the global setting `notes.listRendererId`, and the
+// only code Joplin runs for it is the click handler of its View > Note list
+// style menu item. A plugin cannot set a global setting, so we invoke that
+// handler. The menu object lives in Joplin's own window, and `@electron/remote`
+// only accepts calls from a webContents Joplin has enabled:
+//
+//   1. The plugin window — enabled on builds where PluginRunner reaches the
+//      real main-process module (works on some Joplin versions).
+//   2. A plugin panel — panels are iframes of Joplin's window, so they share
+//      that enabled webContents. Panel HTML runs event handlers (only
+//      `<script>` tags are inert with innerHTML), so we hand the work to an
+//      onerror handler and report back through the panel message channel.
+//
+// When neither is available we write the setting to the profile ourselves and
+// say so honestly: it applies the next time Joplin starts.
+// ---------------------------------------------------------------------------
+
+interface SwitchAttempt { ok: boolean; detail: string; }
+
+const PANEL_SCRIPT = (menuItemId: string, stamp: string) => `(() => {
+	let done = false;
+	const report = (ok, detail) => {
+		if (done) return;
+		done = true;
+		try {
+			window.webviewApi.postMessage({ source: 'appleNotesSwitchResult', stamp: ${JSON.stringify(stamp)}, ok: !!ok, detail: String(detail || '').slice(0, 300) });
+		} catch (error) { /* nothing else we can do */ }
+	};
+	try {
+		let remote = null;
+		const problems = [];
+		if (typeof window.require === 'function') {
+			try { remote = window.require('@electron/remote'); } catch (error) { problems.push('window.require: ' + error); }
+		} else {
+			problems.push('window.require is not available');
+		}
+		if (!remote) {
+			try { remote = window.parent.require('@electron/remote'); } catch (error) { problems.push('parent.require: ' + error); }
+		}
+		if (!remote) return report(false, problems.join(' | '));
+
+		const menu = remote.Menu.getApplicationMenu();
+		const pending = menu && menu.items ? menu.items.slice() : [];
+		let found = null;
+		while (pending.length > 0) {
+			const item = pending.shift();
+			if (!item) continue;
+			if (item.id === ${JSON.stringify(menuItemId)}) { found = item; break; }
+			try {
+				const submenu = item.submenu;
+				if (submenu && submenu.items) pending.push(...submenu.items);
+			} catch (error) { /* keep walking */ }
+		}
+		if (!found) return report(false, 'menu item not found');
+		found.click();
+		report(true, 'clicked the Note list style menu item');
+	} catch (error) {
+		report(false, 'error: ' + error);
+	}
+})();`;
+
+const switchViaPanelFrame = async (menuItemId: string): Promise<SwitchAttempt> => {
+	const views: any = joplin.views as any;
+	const panels = views && views.panels;
+	if (!panels || typeof panels.create !== 'function' || typeof panels.setHtml !== 'function') {
+		return { ok: false, detail: 'panels API unavailable' };
+	}
+
+	const stamp = String(Date.now());
+	const panelId = 'appleNotesStyleSwitchPanel';
+
+	return await new Promise<SwitchAttempt>((resolve) => {
+		let settled = false;
+		const finish = (attempt: SwitchAttempt) => {
+			if (settled) return;
+			settled = true;
+			diagEvent('panel frame switch', attempt);
+			resolve(attempt);
+		};
+
+		(async () => {
+			// Every API call must start from `joplin` itself: the sandbox proxy
+			// accumulates the property path as you touch it, so reusing one object
+			// for several calls sends an ever-growing (and wrong) method path.
+			const call = (method: string, args: any[]) => (joplin.views.panels as any)[method](...args);
+			try {
+				// Joplin registers plugin views under "<plugin id>:<id>" and hands
+				// that full id back - every later call must use it.
+				const created = await call('create', [panelId]);
+				// create() resolves to the view HANDLE (a plain string) that every
+				// later call needs - the id we passed is not what the app keys views by.
+				const viewId = (typeof created === 'string' && created) ? created
+					: (created && (created.handle || created.id)) ? (created.handle || created.id) : panelId;
+				diagEvent('panel created', viewId);
+				try {
+					await call('onMessage', [viewId, (message: any) => {
+						if (!message || message.source !== 'appleNotesSwitchResult' || message.stamp !== stamp) return;
+						finish({ ok: !!message.ok, detail: String(message.detail || '') });
+					}]);
+				} catch (error) {
+					diagEvent('panel onMessage unavailable', String(error));
+				}
+				const inlineScript = PANEL_SCRIPT(menuItemId, stamp)
+					.replace(/\\/g, '\\\\')
+					.replace(/"/g, '&quot;')
+					.replace(/\n/g, ' ');
+				await call('setHtml', [viewId, '<div style="font: 13px sans-serif; padding: 8px;">Apple Notes: applying the note list style...</div><img src="missing-apple-notes-icon.png" onerror="' + inlineScript + '">']);
+				try {
+					await call('show', [viewId]);
+				} catch (error) {
+					diagEvent('panel show unavailable', String(error));
+				}
+				setTimeout(() => finish({ ok: false, detail: 'the panel script did not report back within 8s' }), 8000);
+			} catch (error) {
+				finish({ ok: false, detail: 'panel setup failed: ' + String(error) });
+			}
+		})();
+	}).then(async (attempt) => {
+		try {
+			try { await (joplin.views.panels as any).hide(panelId); } catch (error) { /* best effort */ }
+		} catch (error) { /* the panel is disposable */ }
+		return attempt;
+	});
+};
+
+const joplinRequireSqlite = (): any => {
+	try {
+		return (joplin as any).require('sqlite3');
+	} catch (error) {
+		try {
+			return nodeRequire('sqlite3');
+		} catch (innerError) {
+			return null;
+		}
+	}
+};
+
+const persistStyleSetting = (dataDir: string): SwitchAttempt => {
+	const notes: string[] = [];
+	try {
+		const fs = nodeRequire('fs');
+		const path = nodeRequire('path');
+		// plugin-data/<id> -> the profile directory is two levels up
+		const profileDir = path.dirname(path.dirname(dataDir));
+		const settingsPath = path.join(profileDir, 'settings.json');
+
+		try {
+			const current = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+			if (current['notes.listRendererId'] !== RENDERER_ID) {
+				current['notes.listRendererId'] = FULL_RENDERER_ID;
+				fs.writeFileSync(settingsPath, JSON.stringify(current, null, 2));
+			}
+			notes.push('settings.json written');
+		} catch (error) {
+			notes.push('settings.json failed: ' + String(error));
+		}
+
+		try {
+			const databasePath = path.join(profileDir, 'database.sqlite');
+			const sqlite = joplinRequireSqlite();
+			if (sqlite) {
+				const db = new sqlite.Database(databasePath);
+				const sql = "UPDATE settings SET value = '" + FULL_RENDERER_ID.replace(/'/g, "''") + "' WHERE key = 'notes.listRendererId'";
+				db.run(sql, (error: any) => {
+					diagEvent('database update', error ? String(error) : 'ok');
+				});
+				db.close();
+				notes.push('database.sqlite updated');
+			} else {
+				notes.push('sqlite3 unavailable');
+			}
+		} catch (error) {
+			notes.push('database update failed: ' + String(error));
+		}
+	} catch (error) {
+		notes.push('persistence failed: ' + String(error));
+	}
+	return { ok: notes.indexOf('settings.json written') >= 0 || notes.indexOf('database.sqlite updated') >= 0, detail: notes.join('; ') };
 };
 
 const showManualInstructions = async (intro: string) => {
@@ -282,8 +558,37 @@ const ensureNoteListStyleActive = async (dataDir: string) => {
 		return;
 	}
 
+	// Second attempt: run the very same menu click, but from a plugin panel.
+	// Panels are iframes of Joplin's own window and that window's webContents
+	// IS enabled for @electron/remote — the plugin window's is not (Joplin 3.7.x).
+	const viaPanel = await switchViaPanelFrame('noteListRenderer_' + FULL_RENDERER_ID);
+	if (viaPanel.ok && isOurRenderer(await currentRendererId())) {
+		writeState(dataDir, { ...state, active: true });
+		diagEvent('switched the note list style via the panel frame');
+		await showToast('Apple Notes: the note list style was switched to Apple Notes automatically.');
+		return;
+	}
+
+	// Last resort, and the one that always works: record the choice in the
+	// profile ourselves, so the style is in effect the next time Joplin starts.
+	// We say so plainly instead of pretending the switch already happened.
+	const persisted = persistStyleSetting(dataDir);
+	diagEvent('persisted the note list style setting', persisted);
 	const attempts = (state.attempts || 0) + 1;
 	writeState(dataDir, { ...state, attempts });
+	if (persisted.ok && isOurRenderer(await currentRendererId())) {
+		writeState(dataDir, { ...state, active: true });
+		diagEvent('switched the note list style after persisting');
+		await showToast('Apple Notes: the note list style was switched to Apple Notes automatically.');
+		return;
+	}
+	if (persisted.ok) {
+		if (attempts === 1 || attempts >= MAX_ACTIVATION_ATTEMPTS) {
+			await showManualInstructions('Joplin blocked the live switch, so Apple Notes saved the choice instead. Restart Joplin and the note list style will be Apple Notes.');
+		}
+		await showToast('Apple Notes: the note list style will be Apple Notes after the next Joplin start.');
+		return;
+	}
 	diagEvent('automatic switch failed', attempts);
 	if (attempts === 1 || attempts >= MAX_ACTIVATION_ATTEMPTS) {
 		await showManualInstructions('Apple Notes tried to switch the note list style for you, but this Joplin version did not allow it.');
@@ -292,6 +597,15 @@ const ensureNoteListStyleActive = async (dataDir: string) => {
 
 joplin.plugins.register({
 	onStart: async function() {
+		// Diagnostics first: they cost nothing and make every later hang visible.
+		try {
+			writeDiag(await joplin.plugins.dataDir());
+			diagEvent('plugin data dir', diagDataDir);
+		} catch (error) {
+			diagEvent('could not read the plugin data dir', String(error));
+		}
+		probeRuntime();
+
 		// Load the full-app theme CSS (bundled in this .jpl) — same effect as the
 		// "Custom stylesheet" boxes in Appearance settings, but zero manual setup.
 		const installDir = await joplin.plugins.installationDir();
@@ -445,7 +759,7 @@ joplin.plugins.register({
 		// Turn on the Apple Notes note list style (first run only). Never let this
 		// break the theme itself: the CSS above is already loaded at this point.
 		try {
-			const dataDir = await joplin.plugins.dataDir();
+			const dataDir = diagDataDir || await joplin.plugins.dataDir();
 			try {
 				await joplin.commands.register({
 					name: 'appleNotesReapplyNoteListStyle',

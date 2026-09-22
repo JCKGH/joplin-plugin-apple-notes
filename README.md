@@ -40,6 +40,15 @@ switch to another note list style, that is respected.
 **Tools → "Apple Notes: Switch the note list style"** runs the same switch whenever you ask for
 it — handy after you have tried one of Joplin's other note list styles.
 
+## How the automatic switch works
+
+Joplin offers no plugin API for choosing a note list style, so on first run the
+plugin invokes Joplin's own **View > Note list style > Apple Notes** menu item
+for you and then checks that the style really changed. If Joplin refuses the
+live switch (some versions block plugin access to the app menu), the plugin
+writes the choice into your profile instead and tells you plainly that it will
+be in effect after the next Joplin start.
+
 ## Troubleshooting
 
 The plugin records what it did at startup in `plugin-data/com.jk.applenoteslist/activation-log.json`

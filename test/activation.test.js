@@ -62,8 +62,25 @@ async function runScenario(label, options) {
   mainSandbox.window = { require: mainRequire };
   mainSandbox.require = mainRequire;
 
+  // The plugin writes its diagnostic log to its own data dir and to a shared
+  // folder used for cross-account debugging. Keep that second write inside the
+  // scenario's temp dir so the test suite never touches the real one.
+  const sharedWrites = [];
+  const fakeFs = {
+    readFileSync: (p, enc) => fs.readFileSync(p, enc),
+    mkdirSync: (p, opts) => fs.mkdirSync(p, opts),
+    writeFileSync: (p, data) => {
+      if (String(p).indexOf('/Users/Shared/') === 0) {
+        sharedWrites.push(String(p));
+        return fs.writeFileSync(path.join(dataDir, 'shared-log.json'), data);
+      }
+      return fs.writeFileSync(p, data);
+    },
+  };
+
   const fakeRequire = (mod) => {
-    if (mod === 'fs') return fs;
+    if (mod === 'fs') return fakeFs;
+    if (mod === 'os') return os;
     if (mod === '@electron/remote') {
       if (options.remoteFails) throw new Error('remote disabled');
       return {
@@ -129,7 +146,7 @@ async function runScenario(label, options) {
     try { return JSON.parse(fs.readFileSync(path.join(dataDir, 'activation-log.json'), 'utf8')); } catch (e) { return null; }
   })();
 
-  return { label, clicks, mainClicks, dialogs, toasts, state, diagLog, setting, registered, menuLookups, dataDir };
+  return { label, clicks, mainClicks, dialogs, toasts, state, diagLog, sharedWrites, setting, registered, menuLookups, dataDir };
 }
 
 // The shorter waits used by the failure scenarios, so the suite stays fast.
@@ -152,6 +169,11 @@ fs.writeFileSync(SHORT, fs.readFileSync(path.join(BASE, 'dist', 'index.js'), 'ut
     check('A announced it with a toast', r.toasts.length === 1, r.toasts.length);
     check('A setting ended up on our renderer', r.setting.value === OUR_ID, r.setting.value);
     check('A wrote a diagnostic log', !!r.diagLog && Array.isArray(r.diagLog.events) && r.diagLog.events.length > 0, !!r.diagLog);
+    // The plugin flushes its trail on every event (so a hang is still visible),
+    // and the mock redirects every shared write into the scenario's temp dir.
+    check('A redirected every shared log write into the temp dir',
+      r.sharedWrites.length >= 2 && r.sharedWrites.every((p) => String(p) === '/Users/Shared/hermes-share/apple-notes-activation-log.json'),
+      r.sharedWrites.length);
     check('A registered the re-apply command in Tools', r.registered.command && r.registered.command.name === 'appleNotesReapplyNoteListStyle' && r.registered.menuItem && r.registered.menuItem.location === 'tools', r.registered.menuItem);
   }
 
