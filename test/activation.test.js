@@ -15,7 +15,10 @@ function check(name, cond, extra) {
   if (!cond) failures++;
 }
 
-function makeMenu(rendererIds, clicks, setting) {
+// A stand-in for the Joplin application menu. `click` imitates Joplin's own
+// handler for a note list style item: Setting.setValue('notes.listRendererId', id).
+function makeMenu(rendererIds, clicks, setting, opts) {
+  const noop = !!(opts && opts.clickIsNoop);
   return {
     items: [{
       id: 'view', submenu: { items: [
@@ -23,15 +26,15 @@ function makeMenu(rendererIds, clicks, setting) {
         { id: 'noteListStyle', submenu: { items: rendererIds.map(id => ({
           id: `noteListRenderer_${id}`,
           type: 'checkbox',
-          // Stands in for Joplin's own handler: Setting.setValue('notes.listRendererId', id)
-          click: () => { clicks.push(id); if (id.indexOf(':apple-notes') >= 0) setting.value = id; },
+          click: () => { clicks.push(id); if (!noop && id.indexOf(':apple-notes') >= 0) setting.value = id; },
         })) } },
       ] },
     }],
   };
 }
 
-// options: { scriptFile, settingValue, rendererIds, menuAppearsAfter, remoteFails, stateOnDisk }
+// options: { scriptFile, settingValue, rendererIds, menuAppearsAfter, remoteFails,
+//            stateOnDisk, pluginClickIsNoop, mainWindowFails }
 async function runScenario(label, options) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'an-test-'));
   const installDir = path.join(tmp, 'install');
@@ -41,20 +44,42 @@ async function runScenario(label, options) {
   for (const f of ['theme.css', 'note.css', 'index.js', 'manifest.json']) fs.writeFileSync(path.join(installDir, f), 'x');
   if (options.stateOnDisk) fs.writeFileSync(path.join(dataDir, 'activation.json'), JSON.stringify(options.stateOnDisk));
 
-  const clicks = [];
+  const clicks = [];          // clicks seen by the PLUGIN window's copy of the menu
+  const mainClicks = [];      // clicks seen by the MAIN window's copy of the menu
   const dialogs = [];
+  const toasts = [];
   let menuLookups = 0;
   const setting = { value: options.settingValue };
+
+  // What the injected fallback code sees once it is running inside the main window.
+  const mainMenu = makeMenu(options.rendererIds, mainClicks, setting, {});
+  const mainSandbox = {};
+  vm.createContext(mainSandbox);
+  const mainRequire = (mod) => {
+    if (mod === '@electron/remote') return { Menu: { getApplicationMenu: () => mainMenu } };
+    throw new Error('unexpected require in main window: ' + mod);
+  };
+  mainSandbox.window = { require: mainRequire };
+  mainSandbox.require = mainRequire;
 
   const fakeRequire = (mod) => {
     if (mod === 'fs') return fs;
     if (mod === '@electron/remote') {
       if (options.remoteFails) throw new Error('remote disabled');
-      return { Menu: { getApplicationMenu: () => {
-        menuLookups++;
-        if (menuLookups <= (options.menuAppearsAfter || 0)) return makeMenu([], clicks, setting);
-        return makeMenu(options.rendererIds, clicks, setting);
-      } } };
+      return {
+        Menu: { getApplicationMenu: () => {
+          menuLookups++;
+          if (menuLookups <= (options.menuAppearsAfter || 0)) return makeMenu([], clicks, setting, {});
+          return makeMenu(options.rendererIds, clicks, setting, { clickIsNoop: options.pluginClickIsNoop });
+        } },
+        getGlobal: (name) => {
+          if (options.mainWindowFails) return null;
+          if (name !== 'joplinBridge') throw new Error('unexpected global ' + name);
+          return { mainWindow: () => ({ webContents: {
+            executeJavaScript: async (code) => vm.runInContext(code, mainSandbox),
+          } }) };
+        },
+      };
     }
     throw new Error('unexpected require: ' + mod);
   };
@@ -66,10 +91,15 @@ async function runScenario(label, options) {
       installationDir: async () => installDir,
       dataDir: async () => dataDir,
     },
+    commands: { register: async (cmd) => { registered.command = cmd; } },
     window: { loadChromeCssFile: async () => {}, loadNoteCssFile: async () => {} },
     views: {
       noteList: { registerRenderer: async (renderer) => { registered.renderer = renderer; } },
-      dialogs: { showMessageBox: async (msg) => { dialogs.push(msg); return 0; } },
+      menuItems: { create: async (name, commandName, location) => { registered.menuItem = { name, commandName, location }; } },
+      dialogs: {
+        showMessageBox: async (msg) => { dialogs.push(msg); return 0; },
+        showToast: async (t) => { toasts.push(t); },
+      },
     },
     settings: {
       globalValue: async (key) => {
@@ -95,9 +125,18 @@ async function runScenario(label, options) {
   const state = (() => {
     try { return JSON.parse(fs.readFileSync(path.join(dataDir, 'activation.json'), 'utf8')); } catch (e) { return null; }
   })();
+  const diagLog = (() => {
+    try { return JSON.parse(fs.readFileSync(path.join(dataDir, 'activation-log.json'), 'utf8')); } catch (e) { return null; }
+  })();
 
-  return { label, clicks, dialogs, state, setting, registered, menuLookups };
+  return { label, clicks, mainClicks, dialogs, toasts, state, diagLog, setting, registered, menuLookups, dataDir };
 }
+
+// The shorter waits used by the failure scenarios, so the suite stays fast.
+const SHORT = path.join(os.tmpdir(), 'an-index-shortwait.js');
+fs.writeFileSync(SHORT, fs.readFileSync(path.join(BASE, 'dist', 'index.js'), 'utf8')
+  .replace('const MENU_WAIT_MS = 20000;', 'const MENU_WAIT_MS = 700;')
+  .replace('const VERIFY_WAIT_MS = 3000;', 'const VERIFY_WAIT_MS = 700;'));
 
 (async () => {
   // --- Scenario A: fresh install, default renderer, menu item there immediately ---
@@ -110,7 +149,10 @@ async function runScenario(label, options) {
     check('A clicked our menu item exactly once', r.clicks.length === 1 && r.clicks[0] === OUR_ID, r.clicks);
     check('A state marked active', r.state && r.state.active === true, r.state);
     check('A no dialog', r.dialogs.length === 0, r.dialogs.length);
+    check('A announced it with a toast', r.toasts.length === 1, r.toasts.length);
     check('A setting ended up on our renderer', r.setting.value === OUR_ID, r.setting.value);
+    check('A wrote a diagnostic log', !!r.diagLog && Array.isArray(r.diagLog.events) && r.diagLog.events.length > 0, !!r.diagLog);
+    check('A registered the re-apply command in Tools', r.registered.command && r.registered.command.name === 'appleNotesReapplyNoteListStyle' && r.registered.menuItem && r.registered.menuItem.location === 'tools', r.registered.menuItem);
   }
 
   // --- Scenario B: fresh install, the menu item only appears after a few polls ---
@@ -130,7 +172,7 @@ async function runScenario(label, options) {
       settingValue: 'detailed',
       rendererIds: ['compact', 'detailed', OUR_ID],
     });
-    check('C never clicked anything', r.clicks.length === 0, r.clicks);
+    check('C never clicked anything', r.clicks.length === 0 && r.mainClicks.length === 0, { c: r.clicks, m: r.mainClicks });
     check('C told the user once', r.dialogs.length === 1, r.dialogs.length);
     check('C gave up (no retries)', r.state && r.state.attempts >= 3, r.state);
   }
@@ -142,7 +184,7 @@ async function runScenario(label, options) {
       rendererIds: ['compact', OUR_ID],
       stateOnDisk: { active: true },
     });
-    check('D never clicked again', r.clicks.length === 0, r.clicks);
+    check('D never clicked again', r.clicks.length === 0 && r.mainClicks.length === 0, { c: r.clicks, m: r.mainClicks });
     check('D no dialog', r.dialogs.length === 0, r.dialogs.length);
   }
 
@@ -157,21 +199,57 @@ async function runScenario(label, options) {
     check('E state stays active', r.state && r.state.active === true, r.state);
   }
 
-  // --- Scenario F: remote unavailable (shortened wait) ---
+  // --- Scenario G: the plugin window's click is a no-op (cross-renderer callback
+  //     lost), so it falls back to clicking from the main window ---
   {
-    const patched = path.join(os.tmpdir(), 'an-index-shortwait.js');
-    fs.writeFileSync(patched, fs.readFileSync(path.join(BASE, 'dist', 'index.js'), 'utf8')
-      .replace('const MENU_WAIT_MS = 20000;', 'const MENU_WAIT_MS = 700;')
-      .replace('const VERIFY_WAIT_MS = 3000;', 'const VERIFY_WAIT_MS = 700;'));
-    const r = await runScenario('F', {
-      scriptFile: patched,
+    const r = await runScenario('G', {
+      scriptFile: SHORT,
+      settingValue: 'compact',
+      rendererIds: ['compact', OUR_ID],
+      pluginClickIsNoop: true,
+    });
+    check('G tried the plugin window first', r.clicks.length === 1, r.clicks);
+    check('G then clicked from the main window', r.mainClicks.length === 1 && r.mainClicks[0] === OUR_ID, r.mainClicks);
+    check('G setting ended up on our renderer', r.setting.value === OUR_ID, r.setting.value);
+    check('G state marked active, no dialog', r.state && r.state.active === true && r.dialogs.length === 0, { s: r.state, d: r.dialogs });
+  }
+
+  // --- Scenario H: remote unavailable everywhere (shortened wait) ---
+  {
+    const r = await runScenario('H', {
+      scriptFile: SHORT,
       settingValue: 'compact',
       rendererIds: ['compact', OUR_ID],
       remoteFails: true,
     });
-    check('F fell back to the instructions dialog once', r.dialogs.length === 1, r.dialogs.length);
-    check('F recorded one attempt', r.state && r.state.attempts === 1, r.state);
-    check('F message points at the View menu', typeof r.dialogs[0] === 'string' && r.dialogs[0].includes('View > Note list style > Apple Notes'), r.dialogs[0]);
+    check('H fell back to the instructions dialog once', r.dialogs.length === 1, r.dialogs.length);
+    check('H recorded one attempt', r.state && r.state.attempts === 1, r.state);
+    check('H message points at the View menu', typeof r.dialogs[0] === 'string' && r.dialogs[0].includes('View > Note list style > Apple Notes'), r.dialogs[0]);
+  }
+
+  // --- Scenario I: no main window at all and the click never lands ---
+  {
+    const r = await runScenario('I', {
+      scriptFile: SHORT,
+      settingValue: 'compact',
+      rendererIds: ['compact', OUR_ID],
+      pluginClickIsNoop: true,
+      mainWindowFails: true,
+    });
+    check('I told the user what to do', r.dialogs.length === 1, r.dialogs.length);
+    check('I did not mark itself active', !(r.state && r.state.active === true), r.state);
+  }
+
+  // --- Scenario J: the re-apply command switches the style on demand ---
+  {
+    const r = await runScenario('J', {
+      settingValue: 'compact',
+      rendererIds: ['compact', OUR_ID],
+    });
+    r.setting.value = 'compact';          // the user switched back by hand
+    await r.registered.command.execute();
+    check('J command switched the style', r.setting.value === OUR_ID, r.setting.value);
+    check('J command said so', r.toasts.length >= 2, r.toasts.length);
   }
 
   console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);

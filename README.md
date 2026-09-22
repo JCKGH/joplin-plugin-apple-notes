@@ -13,9 +13,10 @@ Makes Joplin look and feel like Apple Notes on macOS.
 ## Installation
 
 1. Open Joplin and go to **Tools → Options → Plugins** (on macOS: **Joplin → Settings → Plugins**).
-2. Search for **Apple Notes** and click **Install**.
-
-That is the whole setup: the plugin starts straight away and switches Joplin's note list style to Apple Notes for you. (When *updating* an already installed plugin, Joplin may ask you to restart it.)
+2. Search for **Apple Notes** and click **Install** — or, if you downloaded `plugin.jpl` from
+   GitHub, install it from the plugin page's gear menu (**Install from file**).
+3. Restart Joplin when it offers to. Joplin only starts plugins while it is starting up, so this
+   is when **Apple Notes** takes effect — and when it switches the note list style for you.
 
 ## How the note list style gets enabled
 
@@ -24,14 +25,22 @@ does not allow plugins to change built-in settings — there is no "activate thi
 either. So on its first run the plugin does the only thing that is equivalent to a user action:
 it invokes Joplin's own **View → Note list style → Apple Notes** menu item (through the
 `@electron/remote` access that Joplin enables for plugin windows) and then verifies that the
-setting actually changed. The result is the same as if you had clicked it yourself, immediately
-and with no restart.
+setting actually changed. The result is the same as if you had clicked it yourself.
 
 If that is not possible on your Joplin version, the plugin tells you once, and you can set it
 manually from **View → Note list style → Apple Notes**.
 
 Once the style has been active, the plugin never touches your choice again: if you deliberately
 switch to another note list style, that is respected.
+
+**Tools → "Apple Notes: Switch the note list style"** runs the same switch whenever you ask for
+it — handy after you have tried one of Joplin's other note list styles.
+
+## Troubleshooting
+
+The plugin records what it did at startup in `plugin-data/com.jk.applenoteslist/activation-log.json`
+inside the [Joplin profile directory](https://joplinapp.org/help/apps/faq/#where-does-joplin-store-its-settings)
+— include that file when reporting a problem and it will say exactly where it stopped.
 
 ## Usage notes
 

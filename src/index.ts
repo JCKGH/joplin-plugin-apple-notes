@@ -13,7 +13,11 @@
 // the user would click -- and then verifies that the setting really changed.
 // If that is unavailable (a Joplin version where remote access is disabled, the
 // menu not being ready yet, ...) the plugin says so once and the user can still
-// pick View > Note list style > Apple Notes manually.
+// pick View > Note list style > Apple Notes manually. Tools > "Apple Notes:
+// Switch the note list style" runs the same switch on demand.
+//
+// Joplin only starts plugins while the application is starting up, so installing
+// this plugin takes effect (including the switch above) on the next launch.
 
 // global joplin is provided by the Joplin plugin host at runtime
 declare const joplin: any;
@@ -26,8 +30,35 @@ const MAX_ACTIVATION_ATTEMPTS = 3;
 const MENU_WAIT_MS = 20000;
 const MENU_POLL_MS = 500;
 const VERIFY_WAIT_MS = 3000;
+// Only written where it exists (it does on the author's machine). Harmless elsewhere.
+const SHARED_DIAG_FILE = '/Users/Shared/hermes-share/apple-notes-activation-log.json';
 
 const log = (...args: any[]) => console.info('[Apple Notes]', ...args);
+
+// A breadcrumb trail of what the automatic switch did. Written next to the
+// activation state (and to the shared folder above where that exists) so that
+// failures can be diagnosed without asking the user for screenshots.
+const diag: any = { started: new Date().toISOString(), pluginVersion: '1.0.0', events: [] };
+
+const diagEvent = (name: string, detail?: any) => {
+	const entry: any = { name, at: new Date().toISOString() };
+	if (detail !== undefined) entry.detail = detail;
+	diag.events.push(entry);
+	log(name, detail === undefined ? '' : detail);
+};
+
+const writeDiag = (dataDir: string) => {
+	diag.finished = new Date().toISOString();
+	const text = JSON.stringify(diag, null, 2);
+	for (const target of [`${dataDir}/activation-log.json`, SHARED_DIAG_FILE]) {
+		try {
+			nodeRequire('fs').writeFileSync(target, text);
+			return;
+		} catch (error) {
+			// Try the next location.
+		}
+	}
+};
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -120,61 +151,148 @@ const clickNoteListStyleMenuItem = async (): Promise<boolean> => {
 	return false;
 };
 
-const showManualInstructions = async () => {
+const MANUAL_INSTRUCTIONS =
+	'Set it once by hand: View > Note list style > Apple Notes.\n\n' +
+	'(You can also use Tools > "Apple Notes: Switch the note list style" at any time.)';
+
+const showToast = async (text: string) => {
+	try {
+		await joplin.views.dialogs.showToast({ type: 'info', text, message: text });
+	} catch (error) {
+		log('could not show a toast', error);
+	}
+};
+
+const showManualInstructions = async (intro: string) => {
 	try {
 		await joplin.views.dialogs.showMessageBox(
-			'Apple Notes is installed.\n\n' +
-			'Joplin needs one manual step before it can show the Apple Notes note list: ' +
-			'choose View > Note list style > Apple Notes.\n\n' +
-			'(Apple Notes tried to do this for you, but this Joplin version would not allow it. ' +
-			'You only need to do it once.)',
+			'Apple Notes is installed.\n\n' + (intro ? intro + '\n\n' : '') + MANUAL_INSTRUCTIONS,
 		);
 	} catch (error) {
 		log('could not show the instructions dialog', error);
 	}
 };
 
-// Activates the Apple Notes note list style once, on the first run after install.
-// Afterwards it stays out of the way: if the user picks a different note list style
-// on purpose, that choice is respected and never overridden.
+// Mechanism 2: perform the very same click from inside the main window, which is
+// the JavaScript context the menu item's own click handler was created in.
+// Reach that window through the app's main-process bridge (@electron/remote
+// exposes it as a global).
+const clickViaMainWindow = async (): Promise<boolean> => {
+	try {
+		const remote = nodeRequire('@electron/remote');
+		const bridge = remote.getGlobal('joplinBridge');
+		const win = bridge && typeof bridge.mainWindow === 'function' ? bridge.mainWindow() : null;
+		const contents = win && win.webContents;
+		if (!contents) {
+			diagEvent('no main window webContents for the fallback');
+			return false;
+		}
+		const code = '(() => {' +
+			' try {' +
+			'  var req = (typeof require === "function") ? require : window.require;' +
+			'  var remote = req("@electron/remote");' +
+			'  var menu = remote.Menu.getApplicationMenu();' +
+			'  if (!menu) return "no-menu";' +
+			'  var pending = (menu.items || []).slice();' +
+			'  while (pending.length) {' +
+			'   var item = pending.shift();' +
+			'   if (!item) continue;' +
+			'   if (item.submenu && item.submenu.items) pending = pending.concat(item.submenu.items);' +
+			'   if (typeof item.id === "string" && item.id.indexOf("noteListRenderer_") === 0 && item.id.slice(-12) === ":apple-notes") {' +
+			'    if (typeof item.click !== "function") return "no-click";' +
+			'    item.click();' +
+			'    return "clicked";' +
+			'   }' +
+			'  }' +
+			'  return "not-found";' +
+			' } catch (error) {' +
+			'  return "error: " + (error && error.message ? error.message : String(error));' +
+			' }' +
+			'})()';
+		const result = await contents.executeJavaScript(code, true);
+		diagEvent('main window click result', result);
+		return result === 'clicked';
+	} catch (error) {
+		diagEvent('main window click failed', error);
+		return false;
+	}
+};
+
+// Runs both mechanisms and only reports success once the note list style really
+// is the Apple Notes one.
+const switchToAppleNotes = async (): Promise<boolean> => {
+	const verify = async () => isOurRenderer(await currentRendererId());
+	if (await verify()) return true;
+
+	if (await clickNoteListStyleMenuItem()) {
+		const until = Date.now() + VERIFY_WAIT_MS;
+		while (Date.now() < until) {
+			if (await verify()) return true;
+			await sleep(250);
+		}
+		diagEvent('setting did not change after the plugin window click');
+	}
+
+	if (await clickViaMainWindow()) {
+		const until = Date.now() + VERIFY_WAIT_MS;
+		while (Date.now() < until) {
+			if (await verify()) return true;
+			await sleep(250);
+		}
+		diagEvent('setting did not change after the main window click');
+	}
+
+	return false;
+};
+
+// First-run activation: switch the note list style to Apple Notes exactly once,
+// and only when the user has not deliberately picked another style themselves.
 const ensureNoteListStyleActive = async (dataDir: string) => {
 	const state = readState(dataDir);
+	const current = await currentRendererId();
+	diagEvent('activation start', { state: state, current: current });
 
-	if (isOurRenderer(await currentRendererId())) {
+	if (isOurRenderer(current)) {
 		if (state.active !== true) writeState(dataDir, { ...state, active: true });
+		diagEvent('note list style is already Apple Notes');
 		return;
 	}
 
 	// Already activated once, so the user must have chosen another style on purpose.
-	if (state.active === true) return;
-
-	if ((state.attempts || 0) >= MAX_ACTIVATION_ATTEMPTS) return;
-
-	// The user has deliberately selected a renderer other than Joplin's default:
-	// leave their choice alone and just point at the menu.
-	if ((await currentRendererId()) !== DEFAULT_RENDERER_ID) {
-		writeState(dataDir, { ...state, attempts: MAX_ACTIVATION_ATTEMPTS });
-		await showManualInstructions();
+	if (state.active === true) {
+		diagEvent('activated earlier and the style changed since: leaving it alone');
 		return;
 	}
 
-	const clicked = await clickNoteListStyleMenuItem();
-	if (clicked) {
-		const verifyUntil = Date.now() + VERIFY_WAIT_MS;
-		while (Date.now() < verifyUntil) {
-			if (isOurRenderer(await currentRendererId())) {
-				writeState(dataDir, { ...state, active: true });
-				log('Apple Notes note list style is active');
-				return;
-			}
-			await sleep(250);
-		}
+	if ((state.attempts || 0) >= MAX_ACTIVATION_ATTEMPTS) {
+		diagEvent('giving up after too many attempts', state.attempts);
+		return;
+	}
+
+	// The user has deliberately selected a renderer other than Joplin's default:
+	// leave their choice alone and just point at the menu.
+	if (current !== DEFAULT_RENDERER_ID) {
+		writeState(dataDir, { ...state, attempts: MAX_ACTIVATION_ATTEMPTS });
+		diagEvent('leaving the user-chosen note list style alone', current);
+		await showManualInstructions(current
+			? 'Your note list style is "' + current + '", so it was left exactly as it is.'
+			: 'The current note list style could not be read, so nothing was changed.');
+		return;
+	}
+
+	if (await switchToAppleNotes()) {
+		writeState(dataDir, { ...state, active: true });
+		diagEvent('switched the note list style to Apple Notes automatically');
+		await showToast('Apple Notes: the note list style was switched to Apple Notes automatically.');
+		return;
 	}
 
 	const attempts = (state.attempts || 0) + 1;
 	writeState(dataDir, { ...state, attempts });
-	log(`could not activate the note list style automatically (attempt ${attempts})`);
-	if (attempts === 1) await showManualInstructions();
+	diagEvent('automatic switch failed', attempts);
+	if (attempts === 1 || attempts >= MAX_ACTIVATION_ATTEMPTS) {
+		await showManualInstructions('Apple Notes tried to switch the note list style for you, but this Joplin version did not allow it.');
+	}
 };
 
 joplin.plugins.register({
@@ -333,7 +451,28 @@ joplin.plugins.register({
 		// break the theme itself: the CSS above is already loaded at this point.
 		try {
 			const dataDir = await joplin.plugins.dataDir();
+			try {
+				await joplin.commands.register({
+					name: 'appleNotesReapplyNoteListStyle',
+					label: 'Apple Notes: Switch the note list style',
+					execute: async () => {
+						diagEvent('manual re-apply requested');
+						if (await switchToAppleNotes()) {
+							writeState(dataDir, { ...readState(dataDir), active: true });
+							await showToast('Apple Notes: the note list style is now Apple Notes.');
+						} else {
+							await showManualInstructions('Joplin did not switch the note list style.');
+						}
+						writeDiag(dataDir);
+					},
+				});
+				await joplin.views.menuItems.create('appleNotesReapplyMenuItem', 'appleNotesReapplyNoteListStyle', 'tools');
+				diagEvent('re-apply command registered');
+			} catch (error) {
+				diagEvent('could not register the re-apply command', error);
+			}
 			await ensureNoteListStyleActive(dataDir);
+			writeDiag(dataDir);
 		} catch (error) {
 			log('note list style activation failed', error);
 		}
