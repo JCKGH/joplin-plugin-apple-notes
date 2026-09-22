@@ -166,15 +166,14 @@ fs.writeFileSync(SHORT, fs.readFileSync(path.join(BASE, 'dist', 'index.js'), 'ut
     check('B clicked our item', r.clicks.length === 1, r.clicks);
   }
 
-  // --- Scenario C: user already picked a different renderer: never override ---
+  // --- Scenario C: first run switches the style even when another one is selected ---
   {
     const r = await runScenario('C', {
       settingValue: 'detailed',
       rendererIds: ['compact', 'detailed', OUR_ID],
     });
-    check('C never clicked anything', r.clicks.length === 0 && r.mainClicks.length === 0, { c: r.clicks, m: r.mainClicks });
-    check('C told the user once', r.dialogs.length === 1, r.dialogs.length);
-    check('C gave up (no retries)', r.state && r.state.attempts >= 3, r.state);
+    check('C switched anyway (first run always switches)', r.clicks.length === 1 && r.setting.value === OUR_ID, { c: r.clicks, s: r.setting.value });
+    check('C no dialog and marked active', r.dialogs.length === 0 && r.state && r.state.active === true, { d: r.dialogs, s: r.state });
   }
 
   // --- Scenario D: activated before, user switched to another style: respect it ---

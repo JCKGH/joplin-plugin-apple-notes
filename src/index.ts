@@ -50,10 +50,11 @@ const diagEvent = (name: string, detail?: any) => {
 const writeDiag = (dataDir: string) => {
 	diag.finished = new Date().toISOString();
 	const text = JSON.stringify(diag, null, 2);
+	// Write every location that works, so the log is available both to the user
+	// and to whoever is diagnosing the plugin from another account.
 	for (const target of [`${dataDir}/activation-log.json`, SHARED_DIAG_FILE]) {
 		try {
 			nodeRequire('fs').writeFileSync(target, text);
-			return;
 		} catch (error) {
 			// Try the next location.
 		}
@@ -269,16 +270,10 @@ const ensureNoteListStyleActive = async (dataDir: string) => {
 		return;
 	}
 
-	// The user has deliberately selected a renderer other than Joplin's default:
-	// leave their choice alone and just point at the menu.
-	if (current !== DEFAULT_RENDERER_ID) {
-		writeState(dataDir, { ...state, attempts: MAX_ACTIVATION_ATTEMPTS });
-		diagEvent('leaving the user-chosen note list style alone', current);
-		await showManualInstructions(current
-			? 'Your note list style is "' + current + '", so it was left exactly as it is.'
-			: 'The current note list style could not be read, so nothing was changed.');
-		return;
-	}
+	// First run: switch to Apple Notes whatever was selected before - that is what
+	// installing this theme is for. From then on (state.active) whatever the user
+	// picks is left alone forever.
+	diagEvent('first run: switching to Apple Notes (was ' + (current || 'unknown') + ', Joplin default is ' + DEFAULT_RENDERER_ID + ')');
 
 	if (await switchToAppleNotes()) {
 		writeState(dataDir, { ...state, active: true });

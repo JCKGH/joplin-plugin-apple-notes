@@ -27,6 +27,10 @@ it invokes Joplin's own **View → Note list style → Apple Notes** menu item (
 `@electron/remote` access that Joplin enables for plugin windows) and then verifies that the
 setting actually changed. The result is the same as if you had clicked it yourself.
 
+This happens the first time the plugin runs, whatever note list style was selected
+before — installing the theme puts Joplin on the Apple Notes note list. Pick another
+style afterwards if you prefer; that choice is yours and is kept.
+
 If that is not possible on your Joplin version, the plugin tells you once, and you can set it
 manually from **View → Note list style → Apple Notes**.
 
